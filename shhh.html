@@ -1,6 +1,3 @@
-Here's a modified version of the web app that uses actual "shhh shhh" sounds instead of white noise. I'll create it using recorded shushing sounds.
-
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -50,6 +47,24 @@ Here's a modified version of the web app that uses actual "shhh shhh" sounds ins
 
         .timer {
             margin: 20px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .timer-select-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #timeRemaining {
+            font-size: 16px;
+            color: #4CAF50;
+            font-weight: bold;
+            margin-top: 5px;
+            min-height: 24px;
         }
 
         select {
@@ -59,15 +74,84 @@ Here's a modified version of the web app that uses actual "shhh shhh" sounds ins
 
         .volume-control {
             margin: 20px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .volume-slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .volume-icon {
+            font-size: 24px;
+            color: #4CAF50;
+            cursor: pointer;
+            user-select: none;
         }
 
         input[type="range"] {
-            width: 200px;
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #ddd;
+            outline: none;
+            transition: background 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #45a049;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+            border: none;
+            transition: background 0.2s;
+        }
+
+        input[type="range"]::-moz-range-thumb:hover {
+            background: #45a049;
+        }
+
+        .volume-percentage {
+            min-width: 45px;
+            text-align: right;
+            color: #666;
+            font-size: 14px;
         }
 
         .status {
             margin-top: 10px;
             color: #666;
+        }
+
+        .schedule-section {
+            margin-top: 20px;
+        }
+
+        .schedule-list {
+            text-align: left;
         }
     </style>
 </head>
@@ -76,27 +160,46 @@ Here's a modified version of the web app that uses actual "shhh shhh" sounds ins
         <h1>Baby Shusher</h1>
         
         <div class="controls">
-            <button id="playButton">Start Shushing</button>
-            <button id="stopButton">Stop</button>
+            <button id="toggleButton">Start Shushing</button>
         </div>
 
+        <div id="playStatus" class="status">Status: Stopped</div>
+
         <div class="volume-control">
-            <label for="volume">Volume:</label>
-            <input type="range" id="volume" min="0" max="1" step="0.1" value="0.5">
+            <label for="volume">Volume</label>
+            <div class="volume-slider-container">
+                <span class="volume-icon" id="volumeIcon">🔊</span>
+                <input type="range" id="volume" min="0" max="1" step="0.01" value="0.5">
+                <span class="volume-percentage" id="volumePercentage">50%</span>
+            </div>
         </div>
 
         <div class="timer">
-            <label for="timer">Timer:</label>
-            <select id="timer">
-                <option value="0">Continuous</option>
-                <option value="300">5 minutes</option>
-                <option value="600">10 minutes</option>
-                <option value="1800">30 minutes</option>
-                <option value="3600">1 hour</option>
-            </select>
+            <div class="timer-select-container">
+                <label for="timer">Timer:</label>
+                <select id="timer">
+                    <option value="0">Continuous</option>
+                    <option value="60">1 minute</option>
+                    <option value="300">5 minutes</option>
+                    <option value="600">10 minutes</option>
+                    <option value="1800">30 minutes</option>
+                    <option value="3600">1 hour</option>
+                    <option value="7200">2 hours</option>
+                    <option value="14400">4 hours</option>
+                    <option value="28800">8 hours</option>
+                    <option value="36000">10 hours</option>
+                </select>
+            </div>
+            <div id="timeRemaining"></div>
         </div>
 
-        <div id="timeRemaining" class="status"></div>
+        <div class="schedule-section">
+            <h3>Schedule</h3>
+            <div id="scheduleDisplay" class="schedule-list">
+                <div>Morning: 7:30 PM - 8:00 AM</div>
+                <div>Afternoon: 12:00 PM - 4:00 PM</div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -107,12 +210,60 @@ Here's a modified version of the web app that uses actual "shhh shhh" sounds ins
         let timerInterval;
         let timeLeft = 0;
         let isPlaying = false;
+        let scheduleInterval;
 
-        const playButton = document.getElementById('playButton');
-        const stopButton = document.getElementById('stopButton');
+        const toggleButton = document.getElementById('toggleButton');
         const volumeControl = document.getElementById('volume');
         const timerSelect = document.getElementById('timer');
         const timeRemaining = document.getElementById('timeRemaining');
+        const playStatus = document.getElementById('playStatus');
+        const volumePercentage = document.getElementById('volumePercentage');
+        const volumeIcon = document.getElementById('volumeIcon');
+
+        // Schedule configuration
+        const schedule = [
+            { start: '19:30', end: '08:00', description: 'Evening to Morning' },
+            { start: '12:00', end: '16:00', description: 'Afternoon' }
+        ];
+
+        function checkSchedule() {
+            const now = new Date();
+            const currentTime = now.getHours() * 60 + now.getMinutes();
+            
+            for (const period of schedule) {
+                const [startHour, startMinute] = period.start.split(':').map(Number);
+                const [endHour, endMinute] = period.end.split(':').map(Number);
+                
+                let startTime = startHour * 60 + startMinute;
+                let endTime = endHour * 60 + endMinute;
+                
+                // Handle overnight schedule (end time is next day)
+                if (endTime < startTime) {
+                    endTime += 24 * 60; // Add 24 hours in minutes
+                    if (currentTime < startTime) {
+                        currentTime += 24 * 60; // Add 24 hours for current time if it's before midnight
+                    }
+                }
+                
+                if (currentTime >= startTime && currentTime < endTime) {
+                    if (!isPlaying) {
+                        playShushingSound();
+                    }
+                    return;
+                }
+            }
+            
+            // If we're not in any scheduled period and the sound is playing, stop it
+            if (isPlaying) {
+                stopSound();
+            }
+        }
+
+        // Start checking schedule every minute
+        function startScheduleCheck() {
+            checkSchedule(); // Check immediately
+            scheduleInterval = setInterval(checkSchedule, 60000); // Check every minute
+        }
 
         // Add this at the top of your script
         const shushAudio = new Audio('Female Shushing - QuickSounds.com.mp3');
@@ -144,8 +295,17 @@ Here's a modified version of the web app that uses actual "shhh shhh" sounds ins
         }
 
         function playShushingSound() {
+            isPlaying = true;
+            playStatus.textContent = 'Status: Playing';
+            toggleButton.textContent = 'Stop Shushing';
             shushAudio.volume = volumeControl.value;
             shushAudio.play();
+            
+            // Start timer if a duration is selected
+            const selectedDuration = parseInt(timerSelect.value);
+            if (selectedDuration > 0) {
+                startTimer(selectedDuration);
+            }
         }
 
         function playRepeatingShush() {
@@ -171,96 +331,115 @@ Here's a modified version of the web app that uses actual "shhh shhh" sounds ins
 
         // And the stopSound function
         function stopSound() {
+            isPlaying = false;
+            playStatus.textContent = 'Status: Stopped';
+            toggleButton.textContent = 'Start Shushing';
             shushAudio.pause();
             shushAudio.currentTime = 0;
+            
+            // Clear timer when stopping
+            clearInterval(timerInterval);
+            timeRemaining.textContent = '';
         }
 
         function startTimer(duration) {
             clearInterval(timerInterval);
-            if (duration > 0) {
-                timeLeft = duration;
+            timeLeft = duration;
+            updateTimeDisplay();
+            timerInterval = setInterval(() => {
+                timeLeft--;
                 updateTimeDisplay();
-                timerInterval = setInterval(() => {
-                    timeLeft--;
-                    updateTimeDisplay();
-                    if (timeLeft <= 0) {
-                        stopSound();
-                    }
-                }, 1000);
-            } else {
-                timeRemaining.textContent = '';
-            }
+                if (timeLeft <= 0) {
+                    stopSound();
+                }
+            }, 1000);
         }
 
         function updateTimeDisplay() {
-            const minutes = Math.floor(timeLeft / 60);
+            if (timeLeft <= 0) {
+                timeRemaining.textContent = '';
+                return;
+            }
+
+            const hours = Math.floor(timeLeft / 3600);
+            const minutes = Math.floor((timeLeft % 3600) / 60);
             const seconds = timeLeft % 60;
-            timeRemaining.textContent = `Time remaining: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+            let timeText = 'Time remaining: ';
+            if (hours > 0) {
+                timeText += `${hours} hour${hours > 1 ? 's' : ''} `;
+            }
+            if (minutes > 0 || hours > 0) {
+                timeText += `${minutes} minute${minutes !== 1 ? 's' : ''} `;
+            }
+            timeText += `${seconds} second${seconds !== 1 ? 's' : ''}`;
+            
+            timeRemaining.textContent = timeText;
         }
 
-        playButton.addEventListener('click', async () => {
-            await createShushSound();
-            playShushingSound();
+        function updateVolumeDisplay(value) {
+            const percentage = Math.round(value * 100);
+            volumePercentage.textContent = `${percentage}%`;
+            
+            // Update volume icon based on level
+            if (percentage === 0) {
+                volumeIcon.textContent = '🔇';
+            } else if (percentage < 33) {
+                volumeIcon.textContent = '🔈';
+            } else if (percentage < 66) {
+                volumeIcon.textContent = '🔉';
+            } else {
+                volumeIcon.textContent = '🔊';
+            }
+        }
+
+        toggleButton.addEventListener('click', async () => {
+            if (!isPlaying) {
+                await createShushSound();
+                playShushingSound();
+            } else {
+                stopSound();
+            }
         });
 
-        stopButton.addEventListener('click', stopSound);
-
         volumeControl.addEventListener('input', () => {
+            const value = volumeControl.value;
+            if (gainNode) {
+                gainNode.gain.value = value;
+            }
+            shushAudio.volume = value;
+            updateVolumeDisplay(value);
+        });
+
+        // Initialize volume display
+        updateVolumeDisplay(volumeControl.value);
+
+        // Add click handler for volume icon to mute/unmute
+        volumeIcon.addEventListener('click', () => {
+            if (volumeControl.value > 0) {
+                volumeControl.value = 0;
+            } else {
+                volumeControl.value = 0.5; // Set to 50% when unmuting
+            }
             if (gainNode) {
                 gainNode.gain.value = volumeControl.value;
             }
+            shushAudio.volume = volumeControl.value;
+            updateVolumeDisplay(volumeControl.value);
         });
 
         timerSelect.addEventListener('change', () => {
-            if (isPlaying) {
-                startTimer(parseInt(timerSelect.value));
+            const selectedDuration = parseInt(timerSelect.value);
+            if (selectedDuration > 0 && isPlaying) {
+                startTimer(selectedDuration);
+            } else if (selectedDuration === 0) {
+                clearInterval(timerInterval);
+                timeRemaining.textContent = '';
             }
         });
+
+        // Start the schedule checker when the page loads
+        startScheduleCheck();
     </script>
 </body>
 </html>
-```
-
-This version creates a more realistic "shushing" sound by:
-
-1. Generating a synthesized "shh" sound that's more similar to human shushing
-2. Playing the sound in a repeating pattern with small gaps between each "shush"
-3. Using an envelope to shape the sound to be more natural
-4. Adding slight variations to make it sound more organic
-
-Key features:
-
-1. Realistic shushing sound that repeats at regular intervals
-2. Volume control
-3. Timer options (5 min to 1 hour)
-4. Clean, simple interface
-5. Mobile-responsive design
-
-To make it even more realistic, you could:
-
-1. Add multiple variations of the shushing sound
-2. Adjust the timing between shushes
-3. Add a gradual fade-in/fade-out effect
-4. Include different shushing patterns
-
-Note: If you want to use actual recorded shushing sounds instead of synthesized ones, you would need to modify the code to use audio files. Here's how you could modify it to use real audio:
-
-```javascript
-// Add this at the top of your script
-const shushAudio = new Audio('12-shhh-47022.mp3');
-shushAudio.loop = true;
-
-// Then modify the playShushingSound function
-function playShushingSound() {
-    shushAudio.volume = volumeControl.value;
-    shushAudio.play();
-}
-
-// And the stopSound function
-function stopSound() {
-    shushAudio.pause();
-    shushAudio.currentTime = 0;
-}
-```
-
-Just replace 'path-to-your-shush-sound.mp3' with the actual path to your shushing sound file.
